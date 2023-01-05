@@ -42,6 +42,7 @@ linewidth=0, antialiased=False)
 
 ax.set_xlabel('Gel radius')
 ax.set_ylabel('Time, s')
+ax.view_init(-160, 60)
 
 plt.show()
 
