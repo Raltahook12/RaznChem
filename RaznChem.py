@@ -1,43 +1,48 @@
-
-
-import numpy as np 
+import numpy as np
 import matplotlib.pyplot as plt
-import mpl_toolkits.mplot3d
-import matplotlib as mpl
-R = 10
-D = 10**-2
+from matplotlib import cm
 
+R = 0.01 # m
+D = 10**-6 # m2/s
+N = 100 # R steps Number
+total_time = 10 # s
 
-r = np.linspace(0,R,100)
-dr = 1/len(r)
+r = np.linspace(0, R, N + 1) # here N + 1 because otherwise the step will be wrong
+dr = R/N
+#print('r step size: ', dr)
+dt = 0.001 # если тут сделаешь из условия устойчивости расчет - будет круто
+#print('t step size: ', dt)
 
-dt = dr**2/(2*D*R)
-nt = dt**-1
-i = 1
-t = np.linspace(0,1,int(nt))
-while i < nt-1:
-    t[i] = t[i-1] + dt
-    i+=1
+N_time = int(total_time // dt) # integer division, int() is necessary
 
+t = np.linspace(0, dt * N_time, N_time + 1) # here N + 1 because otherwise the step will be wrong. "0" step is for initial conditions
 
-u = np.zeros((len(r),len(t)))
+#print('U matrix size: ', N + 1, N_time + 1)
+u = np.zeros((N + 1, N_time + 1))
 
+u[0:-1, 0] = 1
+#print(u[:, 0])
+# main loop
+for tn in range(1, N_time+1):
+    #print(tn)
+    for j in range(1, N):
+        u[j, tn] = D * dt / dr**2 * (u[j + 1, tn - 1] - 2 * u[j, tn - 1] + u[j - 1, tn - 1]) + 2\
+                   * D * dt / r[j] / dr * (u[j, tn - 1] - u[j - 1, tn - 1]) + u[j, tn - 1]
+    #print(u[:, tn])
 
-u[0:-1,0] = (10**-2)
-u[-1,0] = (10**-2)
+    # boundary conditions
+    u[0, tn] = u[1, tn]
+    u[-1, tn] = 0
 
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
+y, x = np.meshgrid(t, r)
+ax.plot_surface(x, y, u, cmap=cm.coolwarm,
+linewidth=0, antialiased=False)
 
+ax.set_xlabel('Gel radius')
+ax.set_ylabel('Time, s')
 
-for tn in range(1,len(t)-1):
-    for hj in range(1,len(r)-1):
-
-      u[hj,tn] = ((D * r[hj] * dt)/(dr * (r[hj]*dr + D * 2 * dt))) * ((u[hj+1,tn-1]-2*u[hj,tn-1] + u[hj-1,tn-1])) + u[hj,tn-1]
-
-
-
-ax = plt.figure().add_subplot(projection="3d")
-y,x = np.meshgrid(t,r)
-ax.plot_surface(x , y , u)
+plt.show()
 
 
