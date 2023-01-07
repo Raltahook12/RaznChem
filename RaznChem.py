@@ -36,7 +36,10 @@ if __name__ == "__main__":
     if app is None:    
         app = QApplication(sys.argv)
     graph = Q3DSurface()
-    graph.addSeries([1,2,3])
+    graph.addSeries([1,2,3]) #не работает,вопрос как сделать рабочий импорт серри.
+    # Если я правильно понимаю,что такое серия -
+    # набор значений x,y,z для каждой точки,
+    # соответсвтвенно мы можем добавить как точку так и набор точек
 
     window = Window(graph)
     window.setWindowTitle("Surface example")
