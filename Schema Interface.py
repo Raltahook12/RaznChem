@@ -1,23 +1,26 @@
 import sys
-
 import numpy as np
 from PyQt5.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout,QHBoxLayout,\
                             QLabel,QLineEdit,QGroupBox,QFormLayout,QMessageBox
 from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtCore import QLocale
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg 
 import matplotlib.pyplot as plt
 
 
 class Window(QWidget):
+
     def __init__(self, parent=None):
         super(Window, self).__init__(parent)
 
         self.setMinimumSize(1200,800)
         self.englishLocale = QLocale(QLocale.English)
+
         # a figure instance to plot on
-        self.figure = plt.figure()
-        self.canvas = FigureCanvas(self.figure)
+        self.surfacePlot = MplCanvas('3d')
+        self.linePlot = MplCanvas()
+        
+
         #LineEdit to set solution concetration
         self.set_concetration = QLineEdit()
         self.set_concetration.setPlaceholderText('Input solution concentration')
@@ -68,18 +71,24 @@ class Window(QWidget):
         #set the layouts
         self.layout = QHBoxLayout()
         self.v_layout = QVBoxLayout()
+        self.graphLayout = QVBoxLayout()
         self.general_statment = QGroupBox(title='General Statments')
         self.generalStatments_layout = QFormLayout()
+        self.selectionbox = QGroupBox(title = 'Selection properties')
 
         #add Widgets to layouts
         #main layout
-        self.layout.addWidget(self.canvas)
+        self.layout.addLayout(self.graphLayout)
         self.layout.addLayout(self.v_layout)
+
+        #vertical layout for plots
+        self.graphLayout.addWidget(self.linePlot)
+        self.graphLayout.addWidget(self.surfacePlot)
 
         #vertical layout for control
         self.v_layout.addWidget(self.button)
         self.v_layout.addWidget(self.general_statment)
-
+        self.v_layout.addWidget(self.selectionbox)
         #groupbox for lineEdits
         self.general_statment.setLayout(self.generalStatments_layout)
         self.generalStatments_layout.addWidget(self.set_radius)
@@ -91,21 +100,18 @@ class Window(QWidget):
 
         #set the main loyout
         self.setLayout(self.layout)
+        print()
 
 
-    def plot(self):
-        self.figure.clear()
-
-        # create an axis
-        ax = self.figure.add_subplot(111,projection = '3d')
+    def SphereDiffusion(self):
 
         #set radius from LineEdit
         try:
-            float(self.set_radius.text())
+            float(self.set_radisus.text())
         except BaseException:
-            R = 0.015
+            self.R = 0.015
         else:
-            R = float(self.set_radius.text())
+            self.R = float(self.set_radius.text())
 
         #set Diffusion coeffisient from LineEdit
         try:
@@ -119,9 +125,9 @@ class Window(QWidget):
         try:
             float(self.set_radiusSteps.text())
         except BaseException:
-            N = 200
+            self.N = 200
         else:
-            N = float(self.set_radiusSteps.text())
+            self.N = float(self.set_radiusSteps.text())
 
         # set time from LineEdit
         try:
@@ -129,45 +135,60 @@ class Window(QWidget):
         except BaseException:
             total_time = 40
         else:
-            total_time = float(self.set_radiusSteps.text())
+            total_time = float(self.set_time.text())
         
-        r = np.linspace(0, R, N + 1) # here N + 1 because otherwise the step will be wrong
-        dr = R/N
+        self.r = np.linspace(0, self.R, self.N + 1) # here N + 1 because otherwise the step will be wrong
+        dr = self.R/self.N
 
 
         dt = 0.001 # если тут сделаешь из условия устойчивости расчет - будет круто
-        N_time = int(total_time // dt) # integer division, int() is necessary
-        t = np.linspace(0, dt * N_time, N_time + 1) # here N + 1 because otherwise the step will be wrong. "0" step is for initial conditions
+        self.N_time = int(total_time // dt) # integer division, int() is necessary
+        self.t = np.linspace(0, dt * self.N_time, self.N_time + 1) # here N + 1 because otherwise the step will be wrong. "0" step is for initial conditions
 
-        u = np.zeros((N + 1, N_time + 1))
+        self.u = np.zeros((self.N + 1, self.N_time + 1))
+        
 
         try:
             float(self.set_concetration.text())
         except BaseException:
-            u[0:-1, 0] = 1
+            self.u[0:-1, 0] = 1
         else:
-            u[0:-1, 0] = float(self.set_concetration.text())
-
+            self.u[0:-1, 0] = float(self.set_concetration.text())
         # main loop
-        for tn in range(1, N_time+1):
-            #print(tn)
-            for j in range(1, N):
-                u[j, tn] = D * dt / dr**2 * (u[j + 1, tn - 1] - 2 * u[j, tn - 1] + u[j - 1, tn - 1]) + 2\
-                            * D * dt / r[j] / dr * (u[j, tn - 1] - u[j - 1, tn - 1]) + u[j, tn - 1]
-                            #print(u[:, tn])
-                            
+        for tn in range(1, self.N_time + 1):
+            # print(tn)
+            for j in range(1, self.N):
+                self.u[j, tn] = D * dt / dr ** 2 * (self.u[j + 1, tn - 1] - 2 * self.u[j, tn - 1] + self.u[j - 1, tn - 1]) + 2 \
+                           * D * dt / (self.r[j] * dr) * (self.u[j, tn - 1] - self.u[j - 1, tn - 1]) + self.u[j, tn - 1]
+
             # boundary conditions
-            u[0, tn] = u[1, tn]
-            u[-1, tn] = 0
-            
-        y,x = np.meshgrid(t,r)
-        ax.plot_surface(x,y,u)
+            self.u[0, tn] = self.u[1, tn]
+            self.u[-1,tn] = 0
 
-        ax.set_ylabel("Time, sec")
-        ax.set_xlabel("Radius, m")
-        ax.set_zlabel("Concentration, mol/liter")
 
-        self.canvas.draw()
+
+    def MassChanges(self):
+        self.mass_on_time = np.zeros_like(self.t)
+        for n in range(0,self.N_time + 1):
+            mass_on_radius = 0
+            for j in range(1,self.N):
+                mass_on_radius += (self.r[j]**3-self.r[j-1]**3)*np.pi*self.u[j,n]*18
+            self.mass_on_time[n] = mass_on_radius
+    
+    def plot(self):
+        self.SphereDiffusion()
+        self.MassChanges()
+
+        print("посчитал")
+        y,x = np.meshgrid(self.t,self.r)
+        z = self.u
+        self.surfacePlot.plot(x,y,z)
+        print('плоскость есть')
+        self.linePlot.plot(self.t,self.mass_on_time)
+        print('2д график есть')
+
+        
+    
     def showMessage(self,event_inniciator):
         #Переработать после добавления всех LineEdit
         if event_inniciator == 'radius_changed':
@@ -180,7 +201,33 @@ class Window(QWidget):
                 self.messageBox.setText("None radius value")
                 self.messageBox.show()
 
+class MplCanvas(FigureCanvasQTAgg):
+    def __init__(self,proj = None):
+        if proj is None:
+            self.fig = plt.figure(layout='tight')
+            self.ax = self.fig.add_subplot(111)
+            super(MplCanvas, self).__init__(self.fig)
+        elif proj == '3d':
+            self.fig = plt.figure(layout='tight')
+            self.ax = self.fig.add_subplot(111,projection = '3d')
+            super(MplCanvas, self).__init__(self.fig)
+    def plot(self,x,y,z = None):
+        if z is None:
+            with plt.ion():
+                self.ax.plot(x,y)
 
+                self.ax.set_xlabel("Mass, g")
+                self.ax.set_ylabel("Time, sec")
+
+        else:
+            with plt.ion():
+                self.ax.plot_surface(x, y, z)
+
+                self.ax.set_ylabel("Time, sec")
+                self.ax.set_xlabel("Radius, m")
+                self.ax.set_zlabel("Concentration, mol/liter")
+
+        
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     
