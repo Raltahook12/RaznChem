@@ -211,6 +211,7 @@ class MplCanvas(FigureCanvasQTAgg):
             self.fig = plt.figure(layout='tight')
             self.ax = self.fig.add_subplot(111,projection = '3d')
             super(MplCanvas, self).__init__(self.fig)
+
     def plot(self,x,y,z = None):
         if z is None:
             with plt.ion():
