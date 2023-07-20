@@ -1,26 +1,26 @@
-import sys
-import numpy as np
-from PySide6.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, \
-    QLabel, QLineEdit, QGroupBox, QFormLayout, QMessageBox
+from PySide6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QHBoxLayout, \
+    QLineEdit, QGroupBox, QFormLayout
 from PySide6.QtGui import QDoubleValidator
-from PySide6.QtCore import QLocale, QThread, Signal, Slot, QObject
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-import matplotlib.pyplot as plt
+from PySide6.QtCore import QLocale, Signal,QSize
+from Classes.MplCanvas import MplCanvas
+from Classes.Sphere import Sphere
 
 
 class Window(QWidget):
     finished = Signal()
     progress = Signal(float)
 
-    def __init__(self, parent=None):
+    def __init__(self,screensize, parent=None,):
         super(Window, self).__init__(parent)
 
-        self.setMinimumSize(1200, 800)
+        self.setMinimumSize(screensize.width()/2, screensize.height()/2)
         self.englishLocale = QLocale(QLocale.English)
 
         # a figure instance to plot on
         self.surfacePlot = MplCanvas('3d')
         self.linePlot = MplCanvas()
+        self.surfacePlot.setMinimumSize(QSize(screensize.width()/3,screensize.height()/3))
+        self.linePlot.setMinimumSize(QSize(screensize.width()/3,screensize.height()/3))
 
         # button for plot
         self.button = QPushButton('Plot')
@@ -83,8 +83,8 @@ class Window(QWidget):
         self.layout.addLayout(self.v_layout)
 
         # vertical layout for plots
-        self.graphLayout.addWidget(self.linePlot)
         self.graphLayout.addWidget(self.surfacePlot)
+        self.graphLayout.addWidget(self.linePlot)
 
         # vertical layout for control
         self.v_layout.addWidget(self.button)
@@ -171,100 +171,3 @@ class Window(QWidget):
             except TypeError:
                 self.messageBox.setText("None radius value")
                 self.messageBox.show()
-
-
-class MplCanvas(FigureCanvasQTAgg):
-    def __init__(self, proj=None):
-        if proj is None:
-            self.fig, self.ax = plt.subplots(layout='tight')
-            super(MplCanvas, self).__init__(self.fig)
-
-        elif proj == '3d':
-            self.fig = plt.figure()
-            super(MplCanvas, self).__init__(self.fig)
-            self.ax = self.fig.add_subplot(111, projection='3d')
-
-    def plot(self, x, y, z=None):
-        if z is None:
-            with plt.ion():
-
-                self.ax.plot(x, y * 10 ** 5)
-                self.ax.set_ylabel("Mass, g * 10^5")
-                self.ax.set_xlabel("Time, sec")
-
-        else:
-            with plt.ion():
-
-                self.ax.plot_surface(x, y, z)
-                self.ax.set_ylabel("Time, sec")
-                self.ax.set_xlabel("Radius, m")
-                self.ax.set_zlabel("Concentration, mol/liter")
-
-
-class Sphere(QThread):
-    def __init__(self, R, D, BaseConc, totalTime, Nradius, N_time, Window):
-        QThread.__init__(self)
-        self.Window = Window
-        self.D = D
-        self.R = R
-        self.BaseConc = BaseConc
-        self.total_time = totalTime
-        self.N_time = N_time
-        self.N = Nradius
-        self.progress = Signal(float)
-        self.finished = Signal()
-
-    def SphereDiffusion(self):
-        self.r = np.linspace(0, self.R, self.N + 1)  # here N + 1 because otherwise the step will be wrong
-        dr = self.R / self.N
-
-        dt = self.total_time / self.N_time
-        self.t = np.linspace(0, self.total_time,
-                             self.N_time + 1)  # here N + 1 because otherwise the step will be wrong. "0" step is for initial conditions
-
-        self.u = np.zeros((self.N + 1, self.N_time + 1))
-        self.u[0:-1, 0] = self.BaseConc
-
-        # main loop
-        for tn in range(1, self.N_time + 1):
-            # print(tn)
-            for j in range(1, self.N):
-                self.u[j, tn] = self.D * dt / dr ** 2 * (
-                            self.u[j + 1, tn - 1] - 2 * self.u[j, tn - 1] + self.u[j - 1, tn - 1]) + 2 \
-                                * self.D * dt / (self.r[j] * dr) * (self.u[j, tn - 1] - self.u[j - 1, tn - 1]) + self.u[
-                                    j, tn - 1]
-
-            # boundary conditions
-            self.u[0, tn] = self.u[1, tn]
-            self.u[-1, tn] = 0
-
-    def MassChanges(self):
-        self.mass_on_time = np.zeros_like(self.t)
-        for n in range(0, self.N_time + 1):
-            mass_on_radius = 0
-            for j in range(1, self.N):
-                mass_on_radius += (self.r[j] ** 3 - self.r[j - 1] ** 3) * np.pi * self.u[j, n] * 18
-            self.mass_on_time[n] = mass_on_radius
-
-    def run(self):
-        print('Run')
-        self.SphereDiffusion()
-        self.MassChanges()
-
-        print("посчитал")
-        y, x = np.meshgrid(self.t, self.r)
-        z = self.u
-        self.Window.surfacePlot.plot(x, y, z)
-        print('плоскость есть')
-        print(len(self.t), len(self.mass_on_time))
-        self.Window.linePlot.plot(self.t, self.mass_on_time)
-        print('2д график есть')
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-
-    main = Window()
-    main.show()
-
-    sys.exit(app.exec_())
